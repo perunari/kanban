@@ -1,10 +1,11 @@
 import { ConfigProvider } from 'antd'
 import jaJP from 'antd/locale/ja_JP'
+import KanbanBoard from './KanbanBoard'
 
 function App() {
   return (
     <ConfigProvider locale={jaJP}>
-      <div>カンバンボード（準備中）</div>
+      <KanbanBoard />
     </ConfigProvider>
   )
 }
