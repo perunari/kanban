@@ -1,5 +1,17 @@
- Container autodev-autodev-run-f8fe235b794f Creating 
- Container autodev-autodev-run-f8fe235b794f Created 
+ Container autodev-autodev-run-8774a68cf9fa Creating 
+ Container autodev-autodev-run-8774a68cf9fa Created 
 SECURITY_FAIL
-- [HIGH] `frontend/src/api.js` — `x-api-key` ヘッダーが一切送信されていない。バックエンドは `app.use('/api', requireApiKey)` で全エンドポイントに認証を要求しているが、フロントエンドの `request()` 関数はそのヘッダーを含まない。結果として全 API 呼び出しが 401 を返しアプリが機能しない（認証機構の実装漏れ）。修正: `VITE_API_KEY` 環境変数を用意し `headers` に `'x-api-key': import.meta.env.VITE_API_KEY` を追加する。
-- [MEDIUM] `backend/src/index.js:8` + `docker-compose.yml` — API キーのフォールバック値 `'internal-dev-key'` がソースコード上にハードコードされており、`docker-compose.yml` でも `API_KEY` 環境変数が設定されていない。本番・開発いずれの環境でもデフォルト値が使われ、ソースコードを読んだ攻撃者が認証を突破できる。修正: `docker-compose.yml` の `backend.environment` に `API_KEY` をシークレット経由で設定し、コード側はフォールバックを削除してenv未設定時に起動失敗させる。
+- [重要度: MEDIUM] `kanban/frontend/src/api.js:2` — `VITE_API_KEY` は Vite のビルド時に JavaScript バンドルへ静的に埋め込まれる。ブラウザの DevTools からバンドルを閲覧すれば誰でも API キーを取得でき、バックエンド API へ直接アクセス可能になる。**修正方法**: フロントエンドを BFF (Backend For Frontend) パターンに変更し、セッション Cookie でユーザーを認証した上でサーバーサイドで API キーを付与する。もしくは、このアプリが内部ネットワーク限定であることを明示し、ネットワーク境界での保護（VPN・IP 制限）を追加する。
+
+---
+
+その他の項目については問題なし:
+
+- **SQLインジェクション**: 全クエリがプレースホルダー (`?`) を使用 (`index.js` 全域)
+- **コマンドインジェクション**: シェルコマンド実行なし
+- **XSS**: React/Ant Design が自動エスケープ、`dangerouslySetInnerHTML` の使用なし
+- **認証**: `app.use('/api', requireApiKey)` で全 API エンドポイントを保護、`/health` のみ認証不要で情報漏洩なし
+- **CORS**: `ALLOWED_ORIGIN` を環境変数で制御
+- **入力バリデーション**: 全エンドポイントで型・長さ・ホワイトリストチェックを実施
+- **シークレットのハードコード**: `API_KEY` は環境変数必須、未設定時は起動拒否 (`index.js:9-12`)
+- **エラーレスポンス**: スタックトレース等の内部情報を含まない一般的なメッセージのみ返却
