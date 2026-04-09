@@ -1,0 +1,61 @@
+name: Claude AutoDev
+
+on:
+  issues:
+    types: [labeled]
+  issue_comment:
+    types: [created]
+
+jobs:
+  claude-implement:
+    # Issue に "claude" ラベルが付いたとき
+    if: |
+      (github.event_name == 'issues' && github.event.label.name == 'claude') ||
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '/claude'))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Claude Code
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Get issue details
+        id: issue
+        run: |
+          echo "title=${{ github.event.issue.title }}" >> $GITHUB_OUTPUT
+          echo "number=${{ github.event.issue.number }}" >> $GITHUB_OUTPUT
+
+      - name: Create feature branch
+        run: |
+          git config user.email "claude-autodev@github"
+          git config user.name "Claude AutoDev"
+          git checkout -b "claude/issue-${{ steps.issue.outputs.number }}"
+
+      - name: Run Claude
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          claude --dangerously-skip-permissions \
+            "GitHub Issue #${{ steps.issue.outputs.number }}: ${{ steps.issue.outputs.title }}
+
+            Issue の内容を実装してください。実装後、変更内容を git commit してください。"
+
+      - name: Push branch and create PR
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          git push origin "claude/issue-${{ steps.issue.outputs.number }}"
+          gh pr create \
+            --title "feat: ${{ steps.issue.outputs.title }}" \
+            --body "Closes #${{ steps.issue.outputs.number }}\n\n🤖 Claude AutoDev により自動実装" \
+            --head "claude/issue-${{ steps.issue.outputs.number }}"
