@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { Layout, Typography, Spin, Alert, Badge, Button, theme } from 'antd'
 import { PlusOutlined } from '@ant-design/icons'
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd'
@@ -132,9 +132,21 @@ export default function KanbanBoard() {
     setMembers(memberList)
   }, [])
 
+  const isDraggingRef = useRef(false)
+
   useEffect(() => {
     loadData()
   }, [loadData])
+
+  // 5秒ポーリング: モーダルが閉じていてドラッグ中でない場合のみ更新
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (!modalOpen && !isDraggingRef.current) {
+        loadData()
+      }
+    }, 5000)
+    return () => clearInterval(interval)
+  }, [loadData, modalOpen])
 
   function openAddModal(columnId) {
     setEditingTask(null)
@@ -158,7 +170,12 @@ export default function KanbanBoard() {
     await loadData()
   }
 
+  function handleDragStart() {
+    isDraggingRef.current = true
+  }
+
   async function handleDragEnd(result) {
+    isDraggingRef.current = false
     const { source, destination, draggableId } = result
     if (!destination) return
     if (source.droppableId === destination.droppableId && source.index === destination.index) return
@@ -258,7 +275,7 @@ export default function KanbanBoard() {
       </Header>
 
       <Content style={{ padding: 16, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-        <DragDropContext onDragEnd={handleDragEnd}>
+        <DragDropContext onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
           {/* Horizontal scrolling board */}
           <div style={{
             display: 'flex',
