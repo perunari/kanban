@@ -1,62 +1,10 @@
 import { useEffect, useState } from 'react'
 import { Layout, Typography, Spin, Alert, Badge, theme } from 'antd'
-import { getColumns, getTasks } from './api'
+import { getColumns, getTasks, getMembers } from './api'
+import TaskCard from './TaskCard'
 
 const { Header, Content } = Layout
 const { Title, Text } = Typography
-
-const PRIORITY_COLOR = {
-  urgent: '#ff4d4f',
-  high:   '#fa8c16',
-  medium: '#1677ff',
-  low:    '#8c8c8c',
-}
-
-const PRIORITY_LABEL = {
-  urgent: '緊急',
-  high:   '高',
-  medium: '中',
-  low:    '低',
-}
-
-function TaskItem({ task, members }) {
-  const member = members.find((m) => m.id === task.member_id)
-  return (
-    <div style={{
-      background: '#fff',
-      border: '1px solid #e8e8e8',
-      borderRadius: 6,
-      padding: '8px 10px',
-      marginBottom: 8,
-      boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
-    }}>
-      <Text strong style={{ display: 'block', marginBottom: 4, fontSize: 13 }}>
-        {task.title}
-      </Text>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 4 }}>
-        <span style={{
-          fontSize: 11,
-          color: '#fff',
-          background: PRIORITY_COLOR[task.priority] || '#8c8c8c',
-          borderRadius: 3,
-          padding: '1px 5px',
-        }}>
-          {PRIORITY_LABEL[task.priority] || task.priority}
-        </span>
-        {member && (
-          <Text type="secondary" style={{ fontSize: 11 }}>
-            {member.name}
-          </Text>
-        )}
-        {task.due_date && (
-          <Text type="secondary" style={{ fontSize: 11 }}>
-            {task.due_date}
-          </Text>
-        )}
-      </div>
-    </div>
-  )
-}
 
 function KanbanColumn({ column, tasks, members }) {
   const { token } = theme.useToken()
@@ -97,7 +45,7 @@ function KanbanColumn({ column, tasks, members }) {
           </Text>
         ) : (
           tasks.map((task) => (
-            <TaskItem key={task.id} task={task} members={members} />
+            <TaskCard key={task.id} task={task} members={members} />
           ))
         )}
       </div>
@@ -116,9 +64,10 @@ export default function KanbanBoard() {
     async function load() {
       try {
         setLoading(true)
-        const [cols, taskList] = await Promise.all([getColumns(), getTasks()])
+        const [cols, taskList, memberList] = await Promise.all([getColumns(), getTasks(), getMembers()])
         setColumns(cols)
         setTasks(taskList)
+        setMembers(memberList)
       } catch (e) {
         setError(e.message)
       } finally {
