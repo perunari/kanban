@@ -4,9 +4,21 @@ const db = require('./db');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || 'http://localhost:5173';
+const API_KEY = process.env.API_KEY || 'internal-dev-key';
 
-app.use(cors());
+app.use(cors({ origin: ALLOWED_ORIGIN }));
 app.use(express.json());
+
+function requireApiKey(req, res, next) {
+  const key = req.headers['x-api-key'];
+  if (!key || key !== API_KEY) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  next();
+}
+
+app.use('/api', requireApiKey);
 
 app.get('/health', (req, res) => {
   res.json({ status: 'ok' });
@@ -24,6 +36,9 @@ app.post('/api/members', (req, res) => {
     return res.status(400).json({ error: 'name is required' });
   }
   const trimmed = name.trim();
+  if (trimmed.length > 100) {
+    return res.status(400).json({ error: 'name must be 100 characters or fewer' });
+  }
   const existing = db.prepare('SELECT id FROM members WHERE name = ?').get(trimmed);
   if (existing) {
     return res.status(409).json({ error: 'Member name already exists' });
@@ -58,6 +73,9 @@ app.post('/api/columns', (req, res) => {
     return res.status(400).json({ error: 'name is required' });
   }
   const trimmed = name.trim();
+  if (trimmed.length > 100) {
+    return res.status(400).json({ error: 'name must be 100 characters or fewer' });
+  }
   const existing = db.prepare('SELECT id FROM columns WHERE name = ?').get(trimmed);
   if (existing) {
     return res.status(409).json({ error: 'Column name already exists' });
@@ -116,6 +134,17 @@ app.post('/api/tasks', (req, res) => {
   if (!title || typeof title !== 'string' || title.trim() === '') {
     return res.status(400).json({ error: 'title is required' });
   }
+  if (title.trim().length > 200) {
+    return res.status(400).json({ error: 'title must be 200 characters or fewer' });
+  }
+  if (typeof description === 'string' && description.length > 2000) {
+    return res.status(400).json({ error: 'description must be 2000 characters or fewer' });
+  }
+  if (due_date !== null && due_date !== undefined) {
+    if (typeof due_date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(due_date)) {
+      return res.status(400).json({ error: 'due_date must be in YYYY-MM-DD format' });
+    }
+  }
   if (!column_id || !Number.isInteger(Number(column_id))) {
     return res.status(400).json({ error: 'column_id is required and must be an integer' });
   }
@@ -164,6 +193,17 @@ app.put('/api/tasks/:id', (req, res) => {
 
   if (title !== undefined && (typeof title !== 'string' || title.trim() === '')) {
     return res.status(400).json({ error: 'title must be a non-empty string' });
+  }
+  if (title !== undefined && title.trim().length > 200) {
+    return res.status(400).json({ error: 'title must be 200 characters or fewer' });
+  }
+  if (description !== undefined && typeof description === 'string' && description.length > 2000) {
+    return res.status(400).json({ error: 'description must be 2000 characters or fewer' });
+  }
+  if (due_date !== undefined && due_date !== null) {
+    if (typeof due_date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(due_date)) {
+      return res.status(400).json({ error: 'due_date must be in YYYY-MM-DD format' });
+    }
   }
   const validPriorities = ['urgent', 'high', 'medium', 'low'];
   if (priority !== undefined && !validPriorities.includes(priority)) {
