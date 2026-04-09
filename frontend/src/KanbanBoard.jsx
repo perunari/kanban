@@ -1,12 +1,14 @@
-import { useEffect, useState } from 'react'
-import { Layout, Typography, Spin, Alert, Badge, theme } from 'antd'
+import { useEffect, useState, useCallback } from 'react'
+import { Layout, Typography, Spin, Alert, Badge, Button, theme } from 'antd'
+import { PlusOutlined } from '@ant-design/icons'
 import { getColumns, getTasks, getMembers } from './api'
 import TaskCard from './TaskCard'
+import TaskModal from './TaskModal'
 
 const { Header, Content } = Layout
 const { Title, Text } = Typography
 
-function KanbanColumn({ column, tasks, members }) {
+function KanbanColumn({ column, tasks, members, onAddTask, onEditTask }) {
   const { token } = theme.useToken()
   return (
     <div style={{
@@ -45,9 +47,27 @@ function KanbanColumn({ column, tasks, members }) {
           </Text>
         ) : (
           tasks.map((task) => (
-            <TaskCard key={task.id} task={task} members={members} />
+            <TaskCard
+              key={task.id}
+              task={task}
+              members={members}
+              onClick={() => onEditTask(task)}
+            />
           ))
         )}
+      </div>
+
+      {/* Add Task Button */}
+      <div style={{ padding: '4px 10px 10px', flexShrink: 0 }}>
+        <Button
+          type="dashed"
+          icon={<PlusOutlined />}
+          block
+          size="small"
+          onClick={() => onAddTask(column.id)}
+        >
+          タスクを追加
+        </Button>
       </div>
     </div>
   )
@@ -60,22 +80,49 @@ export default function KanbanBoard() {
   const [loading, setLoading]   = useState(true)
   const [error, setError]       = useState(null)
 
-  useEffect(() => {
-    async function load() {
-      try {
-        setLoading(true)
-        const [cols, taskList, memberList] = await Promise.all([getColumns(), getTasks(), getMembers()])
-        setColumns(cols)
-        setTasks(taskList)
-        setMembers(memberList)
-      } catch (e) {
-        setError(e.message)
-      } finally {
-        setLoading(false)
-      }
+  // Modal state
+  const [modalOpen, setModalOpen]           = useState(false)
+  const [editingTask, setEditingTask]       = useState(null)   // null = 新規作成
+  const [defaultColumnId, setDefaultColumnId] = useState(null)
+
+  const loadData = useCallback(async () => {
+    try {
+      const [cols, taskList, memberList] = await Promise.all([getColumns(), getTasks(), getMembers()])
+      setColumns(cols)
+      setTasks(taskList)
+      setMembers(memberList)
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setLoading(false)
     }
-    load()
   }, [])
+
+  useEffect(() => {
+    loadData()
+  }, [loadData])
+
+  function openAddModal(columnId) {
+    setEditingTask(null)
+    setDefaultColumnId(columnId)
+    setModalOpen(true)
+  }
+
+  function openEditModal(task) {
+    setEditingTask(task)
+    setDefaultColumnId(null)
+    setModalOpen(true)
+  }
+
+  function closeModal() {
+    setModalOpen(false)
+    setEditingTask(null)
+  }
+
+  async function handleModalSuccess() {
+    closeModal()
+    await loadData()
+  }
 
   if (loading) {
     return (
@@ -132,10 +179,22 @@ export default function KanbanBoard() {
               column={col}
               tasks={tasksByColumn[col.id] || []}
               members={members}
+              onAddTask={openAddModal}
+              onEditTask={openEditModal}
             />
           ))}
         </div>
       </Content>
+
+      <TaskModal
+        open={modalOpen}
+        task={editingTask}
+        columns={columns}
+        members={members}
+        defaultColumnId={defaultColumnId}
+        onSuccess={handleModalSuccess}
+        onCancel={closeModal}
+      />
     </Layout>
   )
 }
