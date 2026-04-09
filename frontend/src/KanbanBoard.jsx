@@ -5,6 +5,7 @@ import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd'
 import { getColumns, getTasks, getMembers, moveTask } from './api'
 import TaskCard from './TaskCard'
 import TaskModal from './TaskModal'
+import MemberManagement from './MemberManagement'
 
 const { Header, Content } = Layout
 const { Title, Text } = Typography
@@ -124,6 +125,11 @@ export default function KanbanBoard() {
     } finally {
       setLoading(false)
     }
+  }, [])
+
+  const reloadMembers = useCallback(async () => {
+    const memberList = await getMembers()
+    setMembers(memberList)
   }, [])
 
   useEffect(() => {
@@ -248,6 +254,7 @@ export default function KanbanBoard() {
         <Title level={4} style={{ color: '#fff', margin: 0 }}>
           カンバンボード
         </Title>
+        <MemberManagement members={members} onMembersChange={reloadMembers} />
       </Header>
 
       <Content style={{ padding: 16, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
