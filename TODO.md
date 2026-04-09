@@ -6,7 +6,7 @@
 フロントエンド: React (Vite) + Ant Design / バックエンド: Node.js + Express / DB: SQLite / Docker対応。
 
 ## タスクリスト
-- [ ] プロジェクト構成・Docker環境のセットアップ（ディレクトリ構成、docker-compose.yml、Dockerfile×2）
+- [x] プロジェクト構成・Docker環境のセットアップ（ディレクトリ構成、docker-compose.yml、Dockerfile×2）
 - [ ] バックエンド: DBスキーマ定義と起動時自動マイグレーション実装（members・columns・tasks テーブル）
 - [ ] バックエンド: メンバーAPI実装（一覧取得・登録・削除）
 - [ ] バックエンド: カラムAPI実装（一覧取得・追加・順序管理、拡張可能な設計）
