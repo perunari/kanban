@@ -1,7 +1,8 @@
 import { useEffect, useState, useCallback } from 'react'
 import { Layout, Typography, Spin, Alert, Badge, Button, theme } from 'antd'
 import { PlusOutlined } from '@ant-design/icons'
-import { getColumns, getTasks, getMembers } from './api'
+import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd'
+import { getColumns, getTasks, getMembers, moveTask } from './api'
 import TaskCard from './TaskCard'
 import TaskModal from './TaskModal'
 
@@ -35,27 +36,54 @@ function KanbanColumn({ column, tasks, members, onAddTask, onEditTask }) {
         <Badge count={tasks.length} showZero color={token.colorPrimary} />
       </div>
 
-      {/* Task List (scrollable) */}
-      <div style={{
-        flex: 1,
-        overflowY: 'auto',
-        padding: '10px 10px 4px',
-      }}>
-        {tasks.length === 0 ? (
-          <Text type="secondary" style={{ fontSize: 12, display: 'block', textAlign: 'center', marginTop: 16 }}>
-            タスクなし
-          </Text>
-        ) : (
-          tasks.map((task) => (
-            <TaskCard
-              key={task.id}
-              task={task}
-              members={members}
-              onClick={() => onEditTask(task)}
-            />
-          ))
+      {/* Task List (droppable, scrollable) */}
+      <Droppable droppableId={String(column.id)}>
+        {(provided, snapshot) => (
+          <div
+            ref={provided.innerRef}
+            {...provided.droppableProps}
+            style={{
+              flex: 1,
+              overflowY: 'auto',
+              padding: '10px 10px 4px',
+              background: snapshot.isDraggingOver
+                ? token.colorPrimaryBg
+                : 'transparent',
+              transition: 'background 0.2s ease',
+              minHeight: 60,
+            }}
+          >
+            {tasks.length === 0 && !snapshot.isDraggingOver ? (
+              <Text type="secondary" style={{ fontSize: 12, display: 'block', textAlign: 'center', marginTop: 16 }}>
+                タスクなし
+              </Text>
+            ) : (
+              tasks.map((task, index) => (
+                <Draggable key={task.id} draggableId={String(task.id)} index={index}>
+                  {(provided, snapshot) => (
+                    <div
+                      ref={provided.innerRef}
+                      {...provided.draggableProps}
+                      {...provided.dragHandleProps}
+                      style={{
+                        ...provided.draggableProps.style,
+                        opacity: snapshot.isDragging ? 0.85 : 1,
+                      }}
+                    >
+                      <TaskCard
+                        task={task}
+                        members={members}
+                        onClick={() => onEditTask(task)}
+                      />
+                    </div>
+                  )}
+                </Draggable>
+              ))
+            )}
+            {provided.placeholder}
+          </div>
         )}
-      </div>
+      </Droppable>
 
       {/* Add Task Button */}
       <div style={{ padding: '4px 10px 10px', flexShrink: 0 }}>
@@ -81,8 +109,8 @@ export default function KanbanBoard() {
   const [error, setError]       = useState(null)
 
   // Modal state
-  const [modalOpen, setModalOpen]           = useState(false)
-  const [editingTask, setEditingTask]       = useState(null)   // null = 新規作成
+  const [modalOpen, setModalOpen]             = useState(false)
+  const [editingTask, setEditingTask]         = useState(null)
   const [defaultColumnId, setDefaultColumnId] = useState(null)
 
   const loadData = useCallback(async () => {
@@ -122,6 +150,65 @@ export default function KanbanBoard() {
   async function handleModalSuccess() {
     closeModal()
     await loadData()
+  }
+
+  async function handleDragEnd(result) {
+    const { source, destination, draggableId } = result
+    if (!destination) return
+    if (source.droppableId === destination.droppableId && source.index === destination.index) return
+
+    const taskId = parseInt(draggableId)
+    const srcColumnId = parseInt(source.droppableId)
+    const destColumnId = parseInt(destination.droppableId)
+
+    // Optimistic update
+    setTasks(prev => {
+      const srcTasks = prev
+        .filter(t => t.column_id === srcColumnId)
+        .sort((a, b) => a.position - b.position)
+
+      const movingTask = prev.find(t => t.id === taskId)
+
+      if (srcColumnId === destColumnId) {
+        const reordered = [...srcTasks]
+        reordered.splice(source.index, 1)
+        reordered.splice(destination.index, 0, movingTask)
+        const reorderedIds = new Set(reordered.map(t => t.id))
+        const others = prev.filter(t => !reorderedIds.has(t.id))
+        return [
+          ...others,
+          ...reordered.map((t, i) => ({ ...t, position: i })),
+        ]
+      } else {
+        const destTasks = prev
+          .filter(t => t.column_id === destColumnId)
+          .sort((a, b) => a.position - b.position)
+
+        const newSrcTasks = srcTasks.filter(t => t.id !== taskId)
+        const newDestTasks = [...destTasks]
+        newDestTasks.splice(destination.index, 0, { ...movingTask, column_id: destColumnId })
+
+        const changedIds = new Set([
+          ...newSrcTasks.map(t => t.id),
+          ...newDestTasks.map(t => t.id),
+        ])
+        const others = prev.filter(t => !changedIds.has(t.id))
+        return [
+          ...others,
+          ...newSrcTasks.map((t, i) => ({ ...t, position: i })),
+          ...newDestTasks.map((t, i) => ({ ...t, position: i })),
+        ]
+      }
+    })
+
+    try {
+      await moveTask(taskId, { column_id: destColumnId, position: destination.index })
+      // Sync with server to get accurate positions
+      await loadData()
+    } catch {
+      // Revert on failure
+      await loadData()
+    }
   }
 
   if (loading) {
@@ -164,26 +251,28 @@ export default function KanbanBoard() {
       </Header>
 
       <Content style={{ padding: 16, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-        {/* Horizontal scrolling board */}
-        <div style={{
-          display: 'flex',
-          gap: 12,
-          overflowX: 'auto',
-          paddingBottom: 12,
-          flex: 1,
-          alignItems: 'flex-start',
-        }}>
-          {columns.map((col) => (
-            <KanbanColumn
-              key={col.id}
-              column={col}
-              tasks={tasksByColumn[col.id] || []}
-              members={members}
-              onAddTask={openAddModal}
-              onEditTask={openEditModal}
-            />
-          ))}
-        </div>
+        <DragDropContext onDragEnd={handleDragEnd}>
+          {/* Horizontal scrolling board */}
+          <div style={{
+            display: 'flex',
+            gap: 12,
+            overflowX: 'auto',
+            paddingBottom: 12,
+            flex: 1,
+            alignItems: 'flex-start',
+          }}>
+            {columns.map((col) => (
+              <KanbanColumn
+                key={col.id}
+                column={col}
+                tasks={tasksByColumn[col.id] || []}
+                members={members}
+                onAddTask={openAddModal}
+                onEditTask={openEditModal}
+              />
+            ))}
+          </div>
+        </DragDropContext>
       </Content>
 
       <TaskModal
