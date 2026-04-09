@@ -52,7 +52,7 @@ jobs:
 
       - name: Push branch and create PR
         env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           git push origin "claude/issue-${{ steps.issue.outputs.number }}"
           gh pr create \
