@@ -1,9 +1,10 @@
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001';
+const API_KEY = import.meta.env.VITE_API_KEY;
 
 async function request(path, options = {}) {
   const url = `${BASE_URL}${path}`;
   const res = await fetch(url, {
-    headers: { 'Content-Type': 'application/json', ...options.headers },
+    headers: { 'Content-Type': 'application/json', 'x-api-key': API_KEY, ...options.headers },
     ...options,
   });
 

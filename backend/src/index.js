@@ -5,7 +5,11 @@ const db = require('./db');
 const app = express();
 const PORT = process.env.PORT || 3001;
 const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || 'http://localhost:5173';
-const API_KEY = process.env.API_KEY || 'internal-dev-key';
+const API_KEY = process.env.API_KEY;
+if (!API_KEY) {
+  console.error('FATAL: API_KEY environment variable is not set');
+  process.exit(1);
+}
 
 app.use(cors({ origin: ALLOWED_ORIGIN }));
 app.use(express.json());

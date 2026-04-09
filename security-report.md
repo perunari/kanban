@@ -1,9 +1,5 @@
- Container autodev-autodev-run-3208bd41fade Creating 
- Container autodev-autodev-run-3208bd41fade Created 
+ Container autodev-autodev-run-f8fe235b794f Creating 
+ Container autodev-autodev-run-f8fe235b794f Created 
 SECURITY_FAIL
-- [MEDIUM] backend/src/index.js:8 - `app.use(cors())` がオリジン制限なしで全ドメインからのリクエストを許可している。本番環境では `cors({ origin: 'https://your-domain.com' })` のように許可オリジンを明示的に指定すること。
-- [MEDIUM] backend/src/index.js:16-285 - 全APIエンドポイントに認証・認可チェックが存在しない。APIに直接アクセス可能な環境では、誰でもタスク・メンバー・カラムの作成・更新・削除が可能。最低限、APIキー検証またはセッション認証ミドルウェアを追加すること。
-- [LOW] backend/src/index.js:23 - `POST /api/members` の `name` フィールドにバックエンド側の長さ制限がない。フロントエンドは `maxLength={50}` を持つが、APIを直接叩かれた場合は無制限の文字列が保存される。`name.length > 100` 等のチェックを追加すること。
-- [LOW] backend/src/index.js:57 - `POST /api/columns` の `name` フィールドも同様に長さ制限なし。同上の対応を行うこと。
-- [LOW] backend/src/index.js:116 - `POST /api/tasks` の `title`・`description` フィールドにバックエンド側の長さ制限がない。大量データによるDB肥大化やDoSのリスクがある。
-- [LOW] backend/src/index.js:114 - `due_date` の書式バリデーションが存在しない。任意の文字列（例: `"' OR 1=1"`）が保存可能。SQLインジェクションはプレースホルダーにより防止されているが、不正なデータが永続化される。`/^\d{4}-\d{2}-\d{2}$/.test(due_date)` のような正規表現チェックを追加すること。
+- [HIGH] `frontend/src/api.js` — `x-api-key` ヘッダーが一切送信されていない。バックエンドは `app.use('/api', requireApiKey)` で全エンドポイントに認証を要求しているが、フロントエンドの `request()` 関数はそのヘッダーを含まない。結果として全 API 呼び出しが 401 を返しアプリが機能しない（認証機構の実装漏れ）。修正: `VITE_API_KEY` 環境変数を用意し `headers` に `'x-api-key': import.meta.env.VITE_API_KEY` を追加する。
+- [MEDIUM] `backend/src/index.js:8` + `docker-compose.yml` — API キーのフォールバック値 `'internal-dev-key'` がソースコード上にハードコードされており、`docker-compose.yml` でも `API_KEY` 環境変数が設定されていない。本番・開発いずれの環境でもデフォルト値が使われ、ソースコードを読んだ攻撃者が認証を突破できる。修正: `docker-compose.yml` の `backend.environment` に `API_KEY` をシークレット経由で設定し、コード側はフォールバックを削除してenv未設定時に起動失敗させる。
